@@ -9,7 +9,7 @@ __pycache__/
 *.egg-info/
 
 # macOS
-.DS_Store
+.D_Store
 
 # IDE
 .vscode/
@@ -18,5 +18,9 @@ __pycache__/
 # Archives
 *.zip
 
-# Config (contains API key)
-# Note: actual config is at ~/.talktovibe/config.json, not in repo
+# Config (contains API keys)
+# Note: actual config is at ~/.talktovibe/config.yaml, not in repo
+
+# Test / cache
+.pytest_cache/
+.mypy_cache/
