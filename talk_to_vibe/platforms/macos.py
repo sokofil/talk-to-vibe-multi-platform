@@ -10,13 +10,14 @@ _MODIFIER_KEYS = {"alt_r", "alt_l", "cmd_r", "cmd_l", "ctrl_r", "ctrl_l", "shift
 
 
 class MacOSPlatform(BasePlatform):
-    def build_listener_kwargs(self, logger) -> dict:
+    def build_listener_kwargs(self, logger, debug_key_events: bool = False) -> dict:
         from Quartz import CGEventGetFlags, CGEventGetIntegerValueField, kCGKeyboardEventKeycode
 
         def intercept(event_type, event):
-            vk = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode)
-            flags = CGEventGetFlags(event)
-            logger.info("Quartz intercept event_type=%s vk=%s flags=%s", event_type, vk, flags)
+            if debug_key_events:
+                vk = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode)
+                flags = CGEventGetFlags(event)
+                logger.info("Quartz intercept event_type=%s vk=%s flags=%s", event_type, vk, flags)
             return event
 
         return {"darwin_intercept": intercept}

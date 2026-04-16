@@ -225,3 +225,31 @@ class TestToggleRecording:
             mock_rec.start.return_value = False
             app.on_key_press(FAKE_ALT_R)
         assert app.is_recording is False
+
+    def test_start_failure_resets_armed_state_after_timeout(self):
+        app = _make_app(ptt_key_name="alt_r")
+        with patch.object(app, "recorder") as mock_rec, \
+             patch("talk_to_vibe.app.time.monotonic", side_effect=[1.0, 4.5]):
+            mock_rec.start.return_value = False
+            app.on_key_press(FAKE_ALT_R)
+            app.on_key_press(FAKE_ALT_R)
+
+        assert app.is_recording is False
+        assert app._chord_armed is False
+        assert app.held_keys == set()
+
+    def test_stale_chord_state_is_cleared_before_next_press(self):
+        app = _make_app(ptt_key_name="ctrl+alt_r")
+        app.held_keys = {FAKE_CTRL, FAKE_ALT}
+        app._chord_armed = True
+        app._last_key_event_at = 1.0
+        app._last_chord_arm_at = 1.0
+
+        with patch.object(app, "recorder") as mock_rec, \
+             patch("talk_to_vibe.app.time.monotonic", return_value=4.5):
+            mock_rec.start.return_value = True
+            app.on_key_press(FAKE_CTRL)
+
+        mock_rec.start.assert_not_called()
+        assert app._chord_armed is False
+        assert app.held_keys == {FAKE_CTRL}

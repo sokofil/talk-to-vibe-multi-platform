@@ -92,6 +92,18 @@ class TestMacOSPlatform:
         assert "darwin_intercept" in kwargs
         assert callable(kwargs["darwin_intercept"])
 
+    def test_build_listener_kwargs_respects_debug_flag(self):
+        p = MacOSPlatform()
+        logger = MagicMock()
+
+        with patch("Quartz.CGEventGetIntegerValueField", return_value=25), \
+             patch("Quartz.CGEventGetFlags", return_value=256), \
+             patch("Quartz.kCGKeyboardEventKeycode", 9):
+            kwargs = p.build_listener_kwargs(logger, debug_key_events=False)
+            kwargs["darwin_intercept"](10, object())
+
+        logger.info.assert_not_called()
+
     def test_get_key_display_names(self):
         p = MacOSPlatform()
         names = p.get_key_display_names()

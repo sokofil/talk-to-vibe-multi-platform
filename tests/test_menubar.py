@@ -146,6 +146,15 @@ class TestMenuBarPermissions:
         assert "ptt_key=alt_r" in caplog.text
         listener.start.assert_called_once()
 
+    def test_start_listener_passes_debug_flag_to_platform(self):
+        app = _make_menubar_app(ptt_key_name="alt_r")
+        app.debug_key_events = True
+        with patch("pynput.keyboard.Listener") as mock_listener:
+            listener = MagicMock()
+            mock_listener.return_value = listener
+            app._start_listener()
+        app.platform.build_listener_kwargs.assert_called_once_with(app.logger, True)
+
     def test_start_listener_alerts_on_listener_exception(self):
         app = _make_menubar_app(ptt_key_name="alt_r")
         with patch("pynput.keyboard.Listener", side_effect=RuntimeError("listener failed")), \
@@ -188,6 +197,32 @@ class TestMenuBarChordPress:
             app.on_key_press(FAKE_ALT_R)
         mock_start.assert_called_once()
         mock_stop.assert_not_called()
+
+    def test_stale_armed_state_is_cleared_before_repeated_press(self):
+        app = _make_menubar_app()
+        app.held_keys = {FAKE_ALT}
+        app._chord_armed = True
+        app._last_key_event_at = 1.0
+        app._last_chord_arm_at = 1.0
+        with patch.object(app, "recorder") as mock_rec, \
+             patch("talk_to_vibe.menubar.time.monotonic", return_value=4.5):
+            mock_rec.start.return_value = True
+            app.on_key_press(FAKE_ALT_R)
+        mock_rec.start.assert_called_once()
+        assert app.is_recording is True
+
+    def test_stale_key_state_is_cleared_before_new_partial_chord(self):
+        app = _make_menubar_app(ptt_key_name="ctrl+alt_r")
+        app.held_keys = {FAKE_CTRL, FAKE_ALT}
+        app._chord_armed = True
+        app._last_key_event_at = 1.0
+        app._last_chord_arm_at = 1.0
+        with patch.object(app, "recorder") as mock_rec, \
+             patch("talk_to_vibe.menubar.time.monotonic", return_value=4.5):
+            app.on_key_press(FAKE_CTRL)
+        mock_rec.start.assert_not_called()
+        assert app._chord_armed is False
+        assert app.held_keys == {FAKE_CTRL}
 
 
 class TestMenuBarChordRelease:
@@ -258,6 +293,14 @@ class TestMenuBarToggleRecording:
             app.on_key_press(FAKE_ALT_R)
         assert app.is_recording is False
         assert app._pending_title == TITLE_IDLE
+
+    def test_start_failure_does_not_log_recording_started(self):
+        app = _make_menubar_app()
+        with patch.object(app, "recorder") as mock_rec, \
+             patch.object(app.logger, "info") as mock_info:
+            mock_rec.start.return_value = False
+            app.on_key_press(FAKE_ALT_R)
+        mock_info.assert_not_called()
 
 
 class TestMenuBarProcess:
@@ -365,6 +408,33 @@ class TestPasteInProgress:
         app.held_keys.add(FAKE_ALT_R)
         app.on_key_release(FAKE_ALT_R)
         assert FAKE_ALT_R in app.held_keys
+
+
+class TestUiQueue:
+    def test_notify_queues_from_worker_thread(self):
+        app = _make_menubar_app()
+        fake_thread = object()
+        with patch("talk_to_vibe.menubar.threading.current_thread", return_value=fake_thread), \
+             patch("talk_to_vibe.menubar.threading.main_thread", return_value=object()):
+            app._notify("Sub", "Body")
+        assert app._ui_actions == [("notify", ("Sub", "Body"))]
+
+    def test_alert_queues_from_worker_thread(self):
+        app = _make_menubar_app()
+        fake_thread = object()
+        with patch("talk_to_vibe.menubar.threading.current_thread", return_value=fake_thread), \
+             patch("talk_to_vibe.menubar.threading.main_thread", return_value=object()):
+            app._alert("Title", "Body")
+        assert app._ui_actions == [("alert", ("Title", "Body"))]
+
+    def test_apply_pending_title_flushes_ui_actions(self):
+        app = _make_menubar_app()
+        app._ui_actions = [("notify", ("Sub", "Body")), ("alert", ("Title", "Body"))]
+        with patch("talk_to_vibe.menubar.rumps") as mock_rumps:
+            app._apply_pending_title(None)
+        mock_rumps.notification.assert_called_once_with("TalkToVibe", "Sub", "Body")
+        mock_rumps.alert.assert_called_once_with("Title", "Body")
+        assert app._ui_actions == []
 
 
 class TestMenuBarAutoEnterToggle:

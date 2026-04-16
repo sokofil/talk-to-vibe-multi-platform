@@ -23,3 +23,20 @@ class TestAudioRecorder:
 
         captured = capsys.readouterr()
         assert "Microphone error" in captured.out
+
+    def test_start_failure_refreshes_input_device_and_clears_stream(self):
+        with patch(
+            "talk_to_vibe.audio.recorder.find_real_microphone",
+            side_effect=[(1, "Mic A"), (2, "Mic B")],
+        ), patch(
+            "talk_to_vibe.audio.recorder.sd.InputStream",
+            side_effect=__import__("sounddevice").PortAudioError("denied"),
+        ):
+            recorder = AudioRecorder()
+            recorder.stream = object()
+
+            assert recorder.start() is False
+
+        assert recorder.stream is None
+        assert recorder.device_id == 2
+        assert recorder.device_name == "Mic B"

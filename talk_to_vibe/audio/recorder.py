@@ -26,6 +26,9 @@ class AudioRecorder:
         self.stream = None
         self.start_time = 0.0
         self.error_callback = error_callback
+        self.refresh_input_device()
+
+    def refresh_input_device(self) -> None:
         self.device_id, self.device_name = find_real_microphone()
 
     def start(self) -> bool:
@@ -44,6 +47,8 @@ class AudioRecorder:
             self.stream.start()
         except sd.PortAudioError as e:
             self.recording = False
+            self.stream = None
+            self.refresh_input_device()
             message = (
                 f"Microphone error: {e}. "
                 "Check System Settings -> Privacy & Security -> Microphone for TalkToVibe.app."

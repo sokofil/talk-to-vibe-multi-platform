@@ -59,5 +59,5 @@ class BasePlatform(ABC):
     def describe_listener_key(self, key: object) -> str:
         return repr(key)
 
-    def build_listener_kwargs(self, logger) -> dict:
+    def build_listener_kwargs(self, logger, debug_key_events: bool = False) -> dict:
         return {}
