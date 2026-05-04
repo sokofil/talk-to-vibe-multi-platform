@@ -136,17 +136,25 @@ class TestMacOSPlatform:
         assert len(help_lines) == 1
         assert "Microphone" in help_lines[0]
 
-    def test_paste_text_calls_pbcopy(self):
+    def test_paste_text_types_text(self):
         p = MacOSPlatform()
-        with patch("subprocess.Popen") as mock_popen, \
-             patch("talk_to_vibe.platforms.macos.time"), \
+        with patch("talk_to_vibe.platforms.macos.time") as mock_time, \
              patch("pynput.keyboard.Controller") as mock_ctrl:
-            mock_proc = MagicMock()
-            mock_popen.return_value = mock_proc
             p.paste_text("hello")
-            mock_popen.assert_called_once()
-            args = mock_popen.call_args[0][0]
-            assert args[0] == "pbcopy"
+            mock_ctrl.return_value.type.assert_called_once_with("hello")
+            mock_time.sleep.assert_not_called()
+
+    def test_paste_text_types_text_then_enters_when_enabled(self):
+        p = MacOSPlatform()
+        with patch("talk_to_vibe.platforms.macos.time") as mock_time, \
+             patch("pynput.keyboard.Controller") as mock_ctrl, \
+             patch("pynput.keyboard.Key") as mock_key:
+            p.paste_text("hello", auto_enter=True)
+            controller = mock_ctrl.return_value
+            controller.type.assert_called_once_with("hello")
+            mock_time.sleep.assert_called_once_with(0.05)
+            controller.press.assert_called_once_with(mock_key.enter)
+            controller.release.assert_called_once_with(mock_key.enter)
 
     def test_play_success_sound(self):
         p = MacOSPlatform()

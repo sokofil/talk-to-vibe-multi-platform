@@ -67,6 +67,12 @@ class TestTalkToVibeProcess:
         captured = capsys.readouterr()
         assert "hello world" in captured.out
 
+    def test_successful_transcription_inserts_text_via_platform(self):
+        app = _make_app(stt=FakeSTT(return_text="hello world"))
+        audio = np.zeros((16000, 1), dtype=np.int16)
+        app._process(audio, 1.0)
+        app.platform.paste_text.assert_called_once_with("hello world", auto_enter=False)
+
     def test_empty_transcription(self, capsys):
         app = _make_app(stt=FakeSTT(return_text=""))
         audio = np.zeros((16000, 1), dtype=np.int16)

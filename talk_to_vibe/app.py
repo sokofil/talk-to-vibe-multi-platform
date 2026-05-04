@@ -126,7 +126,7 @@ class TalkToVibe:
         print(f"  Model:      {self.stt.model}")
         print(f"  Auto-Enter: {'ON' if self.auto_enter else 'OFF'}")
         print(f"  Press chord once to start recording, press again to transcribe.")
-        print(f"  Result is auto-pasted to current app.")
+        print(f"  Result is auto-typed into current app.")
         print(f"  Press Ctrl+C to quit.")
         print("━" * 50)
         print()

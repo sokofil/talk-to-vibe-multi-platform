@@ -396,6 +396,13 @@ class TestPasteInProgress:
             app._process(audio, 1.0)
         assert app._paste_in_progress is False
 
+    def test_process_inserts_text_via_platform(self):
+        app = _make_menubar_app(stt=FakeSTT(return_text="hello"))
+        audio = np.zeros((16000, 1), dtype=np.int16)
+        with patch("talk_to_vibe.menubar.rumps"):
+            app._process(audio, 1.0)
+        app.platform.paste_text.assert_called_once_with("hello", auto_enter=False)
+
     def test_key_press_ignored_during_paste(self):
         app = _make_menubar_app()
         app._paste_in_progress = True

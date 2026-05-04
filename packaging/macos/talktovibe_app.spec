@@ -62,7 +62,7 @@ app = BUNDLE(
         "CFBundleDisplayName": "TalkToVibe",
         "LSUIElement": True,
         "NSPrincipalClass": "NSApplication",
-        "NSAccessibilityUsageDescription": "TalkToVibe needs Accessibility access to monitor your push-to-talk shortcut and paste transcribed text.",
+        "NSAccessibilityUsageDescription": "TalkToVibe needs Accessibility access to monitor your push-to-talk shortcut and type transcribed text.",
         "NSMicrophoneUsageDescription": "TalkToVibe needs microphone access to record speech for transcription.",
     },
 )

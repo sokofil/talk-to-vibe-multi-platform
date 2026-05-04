@@ -189,16 +189,10 @@ class MacOSPlatform(BasePlatform):
         return all(p in _MODIFIER_KEYS for p in parts)
 
     def paste_text(self, text: str, auto_enter: bool = False) -> None:
-        process = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
-        process.communicate(text.encode("utf-8"))
-        time.sleep(0.1)
-
         from pynput.keyboard import Controller, Key
+
         kb = Controller()
-        kb.press(Key.cmd)
-        kb.press("v")
-        kb.release("v")
-        kb.release(Key.cmd)
+        kb.type(text)
 
         if auto_enter:
             time.sleep(0.05)

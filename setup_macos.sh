@@ -27,6 +27,7 @@ REBUILD=0
 REUSE_CONFIG=0
 NO_OPEN_SETTINGS=0
 ENABLE_LOGIN_ITEM=0
+SKIP_SIGNING=0
 
 usage() {
   cat <<EOF
@@ -39,6 +40,7 @@ Options:
   --reuse-config      Reuse existing valid ~/.talktovibe/config.yaml without re-running setup
   --no-open-settings  Do not open System Settings privacy panes
   --rebuild           Force a fresh PyInstaller rebuild
+  --skip-signing      Skip local codesigning of the installed app
 EOF
 }
 
@@ -186,7 +188,13 @@ ensure_random_secret_file() {
   local file_path="$1"
   if [ ! -f "$file_path" ]; then
     mkdir -p "$(dirname "$file_path")"
-    LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32 > "$file_path"
+    LC_ALL=C python3 - <<'PY' > "$file_path"
+import secrets
+import string
+
+alphabet = string.ascii_letters + string.digits
+print(''.join(secrets.choice(alphabet) for _ in range(32)), end='')
+PY
     chmod 600 "$file_path"
   fi
 }
@@ -262,6 +270,10 @@ ensure_signing_keychain() {
 }
 
 sign_installed_app() {
+  if [ "$SKIP_SIGNING" -eq 1 ]; then
+    echo "  Skipping local codesigning"
+    return
+  fi
   ensure_signing_keychain
   local existing_keychains keychain_password
   existing_keychains="$(security list-keychains -d user | tr -d '"')"
@@ -367,6 +379,9 @@ parse_args() {
         ;;
       --rebuild)
         REBUILD=1
+        ;;
+      --skip-signing)
+        SKIP_SIGNING=1
         ;;
       -h|--help)
         usage
