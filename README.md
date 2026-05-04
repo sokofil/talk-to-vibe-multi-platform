@@ -123,6 +123,7 @@ Useful installer flags:
 ./setup_macos.sh --skip-login-item
 ./setup_macos.sh --no-launch
 ./setup_macos.sh --rebuild
+./setup_macos.sh --skip-signing
 ```
 
 Uninstall the packaged app and its installed support files outside the repo:

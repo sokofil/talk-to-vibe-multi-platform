@@ -19,7 +19,8 @@ class TestLoadPrompt:
 
     def test_transcription_prompt_content(self):
         result = load_prompt("transcription")
-        assert "spoken text" in result
+        assert "cleaned-up text" in result
+        assert "Remove filler words" in result or "Remove filler words and disfluencies" in result
         assert "punctuation" in result
         assert result.strip() == result
 

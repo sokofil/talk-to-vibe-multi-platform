@@ -11,6 +11,20 @@ def test_setup_script_exists_and_mentions_talktovibe_app():
     assert "LaunchAgents" in content
 
 
+def test_setup_script_supports_skip_signing_flag():
+    path = REPO_ROOT / "setup_macos.sh"
+    content = path.read_text()
+    assert "--skip-signing" in content
+    assert 'Skipping local codesigning' in content
+
+
+def test_setup_script_uses_python_for_secret_generation():
+    path = REPO_ROOT / "setup_macos.sh"
+    content = path.read_text()
+    assert "import secrets" in content
+    assert "secrets.choice" in content
+
+
 def test_uninstall_script_defaults_to_removing_config_unless_keep_flag():
     path = REPO_ROOT / "uninstall_macos.sh"
     content = path.read_text()
