@@ -143,7 +143,12 @@ class LocalWhisperProvider(BaseSTTProvider):
             beam_size=self.beam_size,
             vad_filter=self.vad_filter,
         )
-        return "".join(seg.text for seg in segments).strip()
+        parts = []
+        for seg in segments:
+            text = (seg.text or "").strip()
+            if text:
+                parts.append(text)
+        return " ".join(parts)
 
 
 __all__ = [
