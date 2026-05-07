@@ -2,6 +2,7 @@ from unittest.mock import patch, MagicMock
 import numpy as np
 
 from talk_to_vibe.app import TalkToVibe
+from talk_to_vibe.platforms.base import PasteResult
 from talk_to_vibe.providers.base import BaseSTTProvider
 from talk_to_vibe.errors import ProviderError
 
@@ -57,7 +58,9 @@ def _make_app(stt=None, **kwargs):
         # Drain the chunk iterator like a real platform would so the upstream
         # transcribe_stream() actually runs and prints progress.
         def _drain_stream(chunks, auto_enter=False):
-            return " ".join(c.strip() for c in chunks if c and c.strip()).strip()
+            return PasteResult(
+                full_text=" ".join(c.strip() for c in chunks if c and c.strip()).strip()
+            )
         mock_platform.paste_text_stream.side_effect = _drain_stream
         mock_plat.return_value = mock_platform
         app = TalkToVibe(stt=stt, ptt_key_name=kwargs.pop("ptt_key_name", "alt_r"), **kwargs)
@@ -78,6 +81,18 @@ class TestTalkToVibeProcess:
         app._process(audio, 1.0)
         captured = capsys.readouterr()
         assert "empty result" in captured.out
+
+    def test_clipboard_restore_failure_printed(self, capsys):
+        app = _make_app(stt=FakeSTT(return_text="hello world"))
+        app.platform.paste_text_stream.side_effect = lambda chunks, auto_enter=False: PasteResult(
+            full_text="hello world",
+            clipboard_restore_failed=True,
+            clipboard_restore_reason="could not restore clipboard",
+        )
+        audio = np.zeros((16000, 1), dtype=np.int16)
+        app._process(audio, 1.0)
+        captured = capsys.readouterr()
+        assert "Clipboard: could not restore previous clipboard contents" in captured.out
 
     def test_provider_error_displayed(self, capsys):
         app = _make_app(stt=FakeSTT(should_raise=ProviderError("API key invalid")))

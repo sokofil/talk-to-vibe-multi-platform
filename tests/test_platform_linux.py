@@ -123,7 +123,8 @@ class TestLinuxNormalizeListenerKey:
 class TestLinuxPaste:
     def test_paste_populates_clipboard_via_xclip(self):
         p = LinuxPlatform()
-        # xclip available, xdotool missing → falls back to pynput typing.
+        # xclip available, xdotool missing -> falls back to pynput typing
+        # without touching the clipboard.
         with patch(
             "talk_to_vibe.platforms.linux.shutil.which",
             side_effect=lambda name: f"/usr/bin/{name}" if name == "xclip" else None,
@@ -133,12 +134,9 @@ class TestLinuxPaste:
              patch("pynput.keyboard.Controller"):
             mock_proc = MagicMock()
             mock_popen.return_value = mock_proc
-            p.paste_text("hello")
-            args = mock_popen.call_args[0][0]
-            assert args[0] == "xclip"
-            # Clipboard receives the text. Allow the timeout kwarg.
-            payload = mock_proc.communicate.call_args.args[0]
-            assert payload == b"hello"
+            result = p.paste_text("hello")
+            mock_popen.assert_not_called()
+            assert result.full_text == "hello"
 
     def test_paste_uses_xdotool_type_when_available(self):
         p = LinuxPlatform()
@@ -149,11 +147,12 @@ class TestLinuxPaste:
         ), patch("talk_to_vibe.platforms.linux.subprocess.Popen"), \
              patch("talk_to_vibe.platforms.linux.subprocess.run") as mock_run, \
              patch("talk_to_vibe.platforms.linux.time"):
-            p.paste_text("hello world")
+            result = p.paste_text("hello world")
         # Expect at least one call with xdotool type.
         type_calls = [c for c in mock_run.call_args_list if c.args[0][:2] == ["xdotool", "type"]]
         assert type_calls, f"expected xdotool type call, got {mock_run.call_args_list}"
         assert "hello world" in type_calls[0].args[0]
+        assert result.full_text == "hello world"
 
     def test_paste_xdotool_uses_safe_delay(self):
         # Regression: --delay 1 caused receiving apps to drop characters
@@ -184,12 +183,13 @@ class TestLinuxPaste:
         ), patch("talk_to_vibe.platforms.linux.subprocess.Popen"), \
              patch("talk_to_vibe.platforms.linux.subprocess.run") as mock_run, \
              patch("talk_to_vibe.platforms.linux.time"):
-            p.paste_text("hello", auto_enter=True)
+            result = p.paste_text("hello", auto_enter=True)
         return_calls = [
             c for c in mock_run.call_args_list
             if c.args[0][:2] == ["xdotool", "key"] and "Return" in c.args[0]
         ]
         assert return_calls, f"expected xdotool key Return call, got {mock_run.call_args_list}"
+        assert result.full_text == "hello"
 
     def test_paste_auto_enter_presses_enter_via_pynput_fallback(self):
         # No xdotool — falls back to pynput, which presses Key.enter.
@@ -200,10 +200,11 @@ class TestLinuxPaste:
              patch("talk_to_vibe.platforms.linux.time"), \
              patch("pynput.keyboard.Controller") as mock_ctrl:
             from pynput.keyboard import Key
-            p.paste_text("hello", auto_enter=True)
+            result = p.paste_text("hello", auto_enter=True)
             kb = mock_ctrl.return_value
             press_keys = [c.args[0] for c in kb.press.call_args_list]
             assert Key.enter in press_keys
+            assert result.full_text == "hello"
 
     def test_paste_falls_back_to_xsel(self):
         p = LinuxPlatform()
@@ -213,9 +214,9 @@ class TestLinuxPaste:
              patch("talk_to_vibe.platforms.linux.subprocess.run"), \
              patch("talk_to_vibe.platforms.linux.time"), \
              patch("pynput.keyboard.Controller"):
-            p.paste_text("hello")
-            args = mock_popen.call_args[0][0]
-            assert args[0] == "xsel"
+            result = p.paste_text("hello")
+            mock_popen.assert_not_called()
+            assert result.full_text == "hello"
 
     def test_paste_proceeds_when_no_clipboard_tool(self):
         # No clipboard tool — we still type text into the focused window via
@@ -226,9 +227,10 @@ class TestLinuxPaste:
              patch("talk_to_vibe.platforms.linux.subprocess.run"), \
              patch("talk_to_vibe.platforms.linux.time"), \
              patch("pynput.keyboard.Controller") as mock_ctrl:
-            p.paste_text("hello")
+            result = p.paste_text("hello")
             mock_popen.assert_not_called()
             mock_ctrl.return_value.type.assert_called_once_with("hello")
+            assert result.full_text == "hello"
 
 
 class TestLinuxTerminalDetection:
@@ -316,17 +318,15 @@ class TestLinuxPasteStream:
              patch("talk_to_vibe.platforms.linux.subprocess.Popen") as mock_popen, \
              patch("talk_to_vibe.platforms.linux.subprocess.run", side_effect=run_side_effect) as mock_run, \
              patch("talk_to_vibe.platforms.linux.time"):
-            full = LinuxPlatform().paste_text_stream(["hello", "world"], auto_enter=False)
-        assert full == "hello world"
+            result = LinuxPlatform().paste_text_stream(["hello", "world"], auto_enter=False)
+        assert result.full_text == "hello world"
         paste_calls = [c for c in mock_run.call_args_list
                        if c.args[0][:2] == ["xdotool", "key"] and "ctrl+shift+v" in c.args[0]]
         # One paste per chunk.
         assert len(paste_calls) == 2, f"expected 2 ctrl+shift+v calls, got {paste_calls}"
         type_calls = [c for c in mock_run.call_args_list if c.args[0][:2] == ["xdotool", "type"]]
         assert not type_calls, f"unexpected xdotool type calls: {type_calls}"
-        # xclip must have been called for each chunk plus the final full-text update.
-        xclip_payloads = [c.args[0] for c in mock_popen.return_value.communicate.call_args_list]
-        assert len(mock_popen.call_args_list) >= 3
+        assert len(mock_popen.call_args_list) >= 2
 
     def test_gui_target_uses_xdotool_type_per_chunk(self):
         which, run_side_effect = self._gui_env()
@@ -334,8 +334,8 @@ class TestLinuxPasteStream:
              patch("talk_to_vibe.platforms.linux.subprocess.Popen"), \
              patch("talk_to_vibe.platforms.linux.subprocess.run", side_effect=run_side_effect) as mock_run, \
              patch("talk_to_vibe.platforms.linux.time"):
-            full = LinuxPlatform().paste_text_stream(["hello", "world"], auto_enter=False)
-        assert full == "hello world"
+            result = LinuxPlatform().paste_text_stream(["hello", "world"], auto_enter=False)
+        assert result.full_text == "hello world"
         type_calls = [c for c in mock_run.call_args_list if c.args[0][:2] == ["xdotool", "type"]]
         assert len(type_calls) == 2, f"expected 2 xdotool type calls, got {type_calls}"
         # First chunk has no leading space; second chunk is prefixed with one.
@@ -356,18 +356,32 @@ class TestLinuxPasteStream:
                         if c.args[0][:2] == ["xdotool", "key"] and "Return" in c.args[0]]
         assert len(return_calls) == 1
 
-    def test_full_text_lands_on_clipboard_after_stream(self):
+    def test_restores_previous_clipboard_after_terminal_stream(self):
         which, run_side_effect = self._gui_env()
-        with patch("talk_to_vibe.platforms.linux.shutil.which", side_effect=which), \
+        terminal_which, terminal_run_side_effect = self._terminal_env()
+        read_calls = []
+
+        def run_with_clipboard(cmd, **kwargs):
+            if cmd[:3] == ["xclip", "-selection", "clipboard"] and "-o" in cmd:
+                result = MagicMock()
+                if not read_calls:
+                    result.stdout = b"https://example.com"
+                else:
+                    result.stdout = b" world"
+                read_calls.append(list(cmd))
+                return result
+            return terminal_run_side_effect(cmd, **kwargs)
+
+        with patch("talk_to_vibe.platforms.linux.shutil.which", side_effect=terminal_which), \
              patch("talk_to_vibe.platforms.linux.subprocess.Popen") as mock_popen, \
-             patch("talk_to_vibe.platforms.linux.subprocess.run", side_effect=run_side_effect), \
+             patch("talk_to_vibe.platforms.linux.subprocess.run", side_effect=run_with_clipboard), \
              patch("talk_to_vibe.platforms.linux.time"):
             mock_proc = MagicMock()
             mock_popen.return_value = mock_proc
-            LinuxPlatform().paste_text_stream(["hello", "world"], auto_enter=False)
-        # Last clipboard write contains the full joined text.
-        last_payload = mock_proc.communicate.call_args.args[0]
-        assert last_payload == b"hello world"
+            result = LinuxPlatform().paste_text_stream(["hello", "world"], auto_enter=False)
+        payloads = [c.args[0] for c in mock_proc.communicate.call_args_list]
+        assert payloads == [b"hello", b" world", b"https://example.com"]
+        assert result.clipboard_restore_failed is False
 
     def test_empty_stream_does_not_paste(self):
         which, run_side_effect = self._gui_env()
@@ -375,8 +389,8 @@ class TestLinuxPasteStream:
              patch("talk_to_vibe.platforms.linux.subprocess.Popen") as mock_popen, \
              patch("talk_to_vibe.platforms.linux.subprocess.run", side_effect=run_side_effect) as mock_run, \
              patch("talk_to_vibe.platforms.linux.time"):
-            full = LinuxPlatform().paste_text_stream([], auto_enter=True)
-        assert full == ""
+            result = LinuxPlatform().paste_text_stream([], auto_enter=True)
+        assert result.full_text == ""
         type_calls = [c for c in mock_run.call_args_list if c.args[0][:2] == ["xdotool", "type"]]
         assert not type_calls
         return_calls = [c for c in mock_run.call_args_list
@@ -390,11 +404,71 @@ class TestLinuxPasteStream:
              patch("talk_to_vibe.platforms.linux.subprocess.Popen"), \
              patch("talk_to_vibe.platforms.linux.subprocess.run", side_effect=run_side_effect) as mock_run, \
              patch("talk_to_vibe.platforms.linux.time"):
-            full = LinuxPlatform().paste_text_stream(["", "  ", "real"], auto_enter=False)
-        assert full == "real"
+            result = LinuxPlatform().paste_text_stream(["", "  ", "real"], auto_enter=False)
+        assert result.full_text == "real"
         type_calls = [c for c in mock_run.call_args_list if c.args[0][:2] == ["xdotool", "type"]]
         assert len(type_calls) == 1
         assert type_calls[0].args[0][-1] == "real"
+
+    def test_restore_failure_sets_result_flag(self):
+        terminal_which, terminal_run_side_effect = self._terminal_env()
+        popen_calls = []
+
+        def popen_side_effect(*args, **kwargs):
+            proc = MagicMock()
+            idx = len(popen_calls)
+            if idx < 2:
+                proc.communicate.return_value = (b"", b"")
+            else:
+                proc.communicate.side_effect = RuntimeError("restore failed")
+            popen_calls.append(proc)
+            return proc
+
+        read_calls = []
+
+        def run_with_clipboard(cmd, **kwargs):
+            if cmd[:3] == ["xclip", "-selection", "clipboard"] and "-o" in cmd:
+                result = MagicMock()
+                if not read_calls:
+                    result.stdout = b"original"
+                else:
+                    result.stdout = b" world"
+                read_calls.append(list(cmd))
+                return result
+            return terminal_run_side_effect(cmd, **kwargs)
+
+        with patch("talk_to_vibe.platforms.linux.shutil.which", side_effect=terminal_which), \
+             patch("talk_to_vibe.platforms.linux.subprocess.Popen", side_effect=popen_side_effect), \
+             patch("talk_to_vibe.platforms.linux.subprocess.run", side_effect=run_with_clipboard), \
+             patch("talk_to_vibe.platforms.linux.time"):
+            result = LinuxPlatform().paste_text_stream(["hello", "world"], auto_enter=False)
+        assert result.full_text == "hello world"
+        assert result.clipboard_restore_failed is True
+        assert result.clipboard_restore_reason == "could not restore clipboard"
+
+    def test_restore_skipped_when_clipboard_changes(self):
+        terminal_which, terminal_run_side_effect = self._terminal_env()
+        read_calls = []
+
+        def run_with_clipboard(cmd, **kwargs):
+            if cmd[:3] == ["xclip", "-selection", "clipboard"] and "-o" in cmd:
+                result = MagicMock()
+                if not read_calls:
+                    result.stdout = b"original"
+                else:
+                    result.stdout = b"user copied something else"
+                read_calls.append(list(cmd))
+                return result
+            return terminal_run_side_effect(cmd, **kwargs)
+
+        with patch("talk_to_vibe.platforms.linux.shutil.which", side_effect=terminal_which), \
+             patch("talk_to_vibe.platforms.linux.subprocess.Popen") as mock_popen, \
+             patch("talk_to_vibe.platforms.linux.subprocess.run", side_effect=run_with_clipboard), \
+             patch("talk_to_vibe.platforms.linux.time"):
+            result = LinuxPlatform().paste_text_stream(["hello", "world"], auto_enter=False)
+        payloads = [c.args[0] for c in mock_popen.return_value.communicate.call_args_list]
+        assert payloads == [b"hello", b" world"]
+        assert result.clipboard_restore_failed is False
 
 
 class TestLinuxSuccessSound:

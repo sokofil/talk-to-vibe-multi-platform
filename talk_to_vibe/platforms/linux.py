@@ -3,9 +3,10 @@ import re
 import shutil
 import subprocess
 import time
+from dataclasses import dataclass
 from typing import Iterable
 
-from talk_to_vibe.platforms.base import BasePlatform
+from talk_to_vibe.platforms.base import BasePlatform, PasteResult
 from talk_to_vibe.errors import PlatformError
 
 _MODIFIER_KEYS = {
@@ -57,6 +58,17 @@ _SOUND_PLAYERS = (
     ("paplay", ["paplay", "/usr/share/sounds/freedesktop/stereo/complete.oga"]),
     ("aplay", ["aplay", "-q", "/usr/share/sounds/alsa/Front_Center.wav"]),
 )
+
+_RESTORE_DELAY_SECONDS = 0.08
+
+
+@dataclass(slots=True)
+class _ClipboardSession:
+    previous_text: str | None = None
+    used_clipboard: bool = False
+    last_written_text: str = ""
+    restore_failed: bool = False
+    restore_reason: str = ""
 
 
 def _is_wayland() -> bool:
@@ -198,12 +210,12 @@ class LinuxPlatform(BasePlatform):
             return repr(key)
         return f"{key!r} -> {normalized!r}"
 
-    def paste_text(self, text: str, auto_enter: bool = False) -> None:
+    def paste_text(self, text: str, auto_enter: bool = False) -> PasteResult:
         if not text:
-            return
-        self.paste_text_stream([text], auto_enter=auto_enter)
+            return PasteResult(full_text="")
+        return self.paste_text_stream([text], auto_enter=auto_enter)
 
-    def paste_text_stream(self, chunks: Iterable[str], auto_enter: bool = False) -> str:
+    def paste_text_stream(self, chunks: Iterable[str], auto_enter: bool = False) -> PasteResult:
         # Decide the strategy once per utterance so it can't flip mid-paste if
         # focus briefly shifts. TUIs (Claude Code, vim, terminal apps) get an
         # atomic clipboard paste because xdotool's per-character key injection
@@ -211,6 +223,7 @@ class LinuxPlatform(BasePlatform):
         # GUI apps get xdotool type, which works identically across editors,
         # browsers, and chat apps and does not depend on a paste shortcut.
         via_clipboard_paste = self._active_window_is_terminal()
+        clipboard_session = self._begin_clipboard_session(via_clipboard_paste)
         parts: list[str] = []
         first = True
         for chunk in chunks:
@@ -220,30 +233,52 @@ class LinuxPlatform(BasePlatform):
             to_send = piece if first else " " + piece
             first = False
             parts.append(piece)
-            self._paste_chunk(to_send, via_clipboard_paste)
+            self._paste_chunk(to_send, via_clipboard_paste, clipboard_session)
 
         full_text = " ".join(parts).strip()
-        # Always leave the full text on the clipboard so the user can re-paste
-        # manually. For multi-chunk TUI pastes this overwrites the per-chunk
-        # clipboard contents we used for ctrl+shift+v.
-        if full_text:
-            self._populate_clipboard(full_text)
+        self._finish_clipboard_session(clipboard_session)
         if auto_enter and full_text:
             self._press_enter()
-        return full_text
+        return PasteResult(
+            full_text=full_text,
+            clipboard_restore_failed=clipboard_session.restore_failed,
+            clipboard_restore_reason=clipboard_session.restore_reason,
+        )
 
-    def _paste_chunk(self, text: str, via_clipboard_paste: bool) -> None:
-        if via_clipboard_paste and self._paste_chunk_via_clipboard(text):
+    def _begin_clipboard_session(self, via_clipboard_paste: bool) -> _ClipboardSession:
+        if not via_clipboard_paste:
+            return _ClipboardSession()
+        return _ClipboardSession(previous_text=self._read_clipboard_text())
+
+    def _finish_clipboard_session(self, session: _ClipboardSession) -> None:
+        if not session.used_clipboard or session.previous_text is None:
+            return
+        time.sleep(_RESTORE_DELAY_SECONDS)
+        restored, reason = self._restore_clipboard_text(
+            previous_text=session.previous_text,
+            expected_current_text=session.last_written_text,
+        )
+        if restored:
+            return
+        if reason == "clipboard changed":
+            return
+        session.restore_failed = True
+        session.restore_reason = reason
+
+    def _paste_chunk(self, text: str, via_clipboard_paste: bool, clipboard_session: _ClipboardSession) -> None:
+        if via_clipboard_paste and self._paste_chunk_via_clipboard(text, clipboard_session):
             return
         if self._type_text_via_xdotool(text):
             return
         self._type_text_via_pynput(text)
 
-    def _paste_chunk_via_clipboard(self, text: str) -> bool:
+    def _paste_chunk_via_clipboard(self, text: str, clipboard_session: _ClipboardSession) -> bool:
         if shutil.which("xdotool") is None:
             return False
         if not self._populate_clipboard(text):
             return False
+        clipboard_session.used_clipboard = True
+        clipboard_session.last_written_text = text
         # Brief pause so the X server registers the new selection before the
         # paste shortcut is fired.
         time.sleep(0.03)
@@ -294,8 +329,40 @@ class LinuxPlatform(BasePlatform):
         except Exception:
             pass
 
+    def _read_clipboard_text(self) -> str | None:
+        tool_name, command = self._select_clipboard_tool(output=True)
+        if not tool_name:
+            return None
+        try:
+            result = subprocess.run(
+                command,
+                check=True,
+                capture_output=True,
+                timeout=2.0,
+            )
+        except Exception:
+            return None
+        if isinstance(result.stdout, bytes):
+            try:
+                return result.stdout.decode("utf-8")
+            except UnicodeDecodeError:
+                return None
+        if isinstance(result.stdout, str):
+            return result.stdout
+        return None
+
+    def _restore_clipboard_text(self, previous_text: str, expected_current_text: str) -> tuple[bool, str]:
+        current_text = self._read_clipboard_text()
+        if current_text is None:
+            return False, "could not read clipboard"
+        if current_text != expected_current_text:
+            return False, "clipboard changed"
+        if self._populate_clipboard(previous_text):
+            return True, ""
+        return False, "could not restore clipboard"
+
     def _populate_clipboard(self, text: str) -> bool:
-        tool_name, command = self._select_clipboard_tool()
+        tool_name, command = self._select_clipboard_tool(output=False)
         if not tool_name:
             return False
         try:
@@ -329,9 +396,16 @@ class LinuxPlatform(BasePlatform):
         except Exception:
             return False
 
-    def _select_clipboard_tool(self) -> tuple[str | None, list[str] | None]:
+    def _select_clipboard_tool(self, output: bool = False) -> tuple[str | None, list[str] | None]:
         for name, command in _CLIPBOARD_TOOLS:
             if shutil.which(name) is not None:
+                if output:
+                    if name == "xclip":
+                        return name, [*command, "-o"]
+                    if name == "xsel":
+                        return name, ["xsel", "--clipboard", "--output"]
+                    if name == "wl-copy":
+                        return None, None
                 return name, command
         return None, None
 

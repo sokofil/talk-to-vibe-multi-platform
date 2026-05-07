@@ -293,9 +293,11 @@ class TalkToVibeMenuBar(rumps.App):
             if text:
                 self._paste_in_progress = True
                 try:
-                    self.platform.paste_text(text, auto_enter=self.auto_enter)
+                    paste_result = self.platform.paste_text(text, auto_enter=self.auto_enter)
                 finally:
                     self._paste_in_progress = False
+                if paste_result.clipboard_restore_failed:
+                    self._notify("Clipboard", "Dictation was inserted, but the previous clipboard could not be restored.")
                 self.platform.play_success_sound()
                 self.logger.info("Transcribed in %.2fs: %s", elapsed, text[:100])
             else:

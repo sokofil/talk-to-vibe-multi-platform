@@ -115,12 +115,15 @@ class TalkToVibe:
                     first = False
                     yield piece
 
-            full_text = self.platform.paste_text_stream(
+            paste_result = self.platform.paste_text_stream(
                 stream_with_echo(), auto_enter=self.auto_enter
             )
+            full_text = paste_result.full_text
             elapsed = time.time() - start
             if full_text:
                 print(f"  ({elapsed:.1f}s)")
+                if paste_result.clipboard_restore_failed:
+                    print("  ⚠ Clipboard: could not restore previous clipboard contents")
                 self.platform.play_success_sound()
             else:
                 print("(empty result)")

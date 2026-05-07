@@ -1,4 +1,4 @@
-from talk_to_vibe.platforms.base import BasePlatform
+from talk_to_vibe.platforms.base import BasePlatform, PasteResult
 from talk_to_vibe.errors import PlatformNotSupportedError
 
 
@@ -21,7 +21,7 @@ class WindowsPlatform(BasePlatform):
     def is_modifier_only(self, chord_str: str) -> bool:
         raise PlatformNotSupportedError("Windows is not yet supported")
 
-    def paste_text(self, text: str, auto_enter: bool = False) -> None:
+    def paste_text(self, text: str, auto_enter: bool = False) -> PasteResult:
         raise PlatformNotSupportedError("Windows is not yet supported")
 
     def play_success_sound(self) -> None:

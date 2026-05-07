@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 import numpy as np
 
+from talk_to_vibe.platforms.base import PasteResult
 from talk_to_vibe.providers.base import BaseSTTProvider
 from talk_to_vibe.tray import (
     ICON_IDLE,
@@ -60,6 +61,7 @@ def _mock_platform():
         {FAKE_CTRL, FAKE_ALT} if s == "ctrl+alt_r" else set()
     )
     mock_platform.get_chord_display_name.side_effect = lambda s: s.replace("+", " + ")
+    mock_platform.paste_text.return_value = PasteResult(full_text="hello world")
     return mock_platform
 
 
@@ -238,6 +240,18 @@ class TestTrayProcess:
         with patch.object(tray, "_notify") as mock_notify:
             tray._process(audio, 1.0)
         mock_notify.assert_not_called()
+
+    def test_clipboard_restore_failure_notifies(self):
+        tray = _make_tray(stt=FakeSTT(return_text="hello"))
+        tray.platform.paste_text.return_value = PasteResult(
+            full_text="hello",
+            clipboard_restore_failed=True,
+            clipboard_restore_reason="could not restore clipboard",
+        )
+        audio = np.zeros((16000, 1), dtype=np.int16)
+        with patch.object(tray, "_notify") as mock_notify:
+            tray._process(audio, 1.0)
+        assert any("Clipboard" in c.args[0] for c in mock_notify.call_args_list)
 
     def test_error_transcription(self):
         tray = _make_tray(stt=FakeSTT(should_raise=RuntimeError("API down")))

@@ -1,5 +1,13 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Iterable
+
+
+@dataclass(slots=True)
+class PasteResult:
+    full_text: str
+    clipboard_restore_failed: bool = False
+    clipboard_restore_reason: str = ""
 
 
 class BasePlatform(ABC):
@@ -28,10 +36,10 @@ class BasePlatform(ABC):
         ...
 
     @abstractmethod
-    def paste_text(self, text: str, auto_enter: bool = False) -> None:
+    def paste_text(self, text: str, auto_enter: bool = False) -> PasteResult:
         ...
 
-    def paste_text_stream(self, chunks: Iterable[str], auto_enter: bool = False) -> str:
+    def paste_text_stream(self, chunks: Iterable[str], auto_enter: bool = False) -> PasteResult:
         """Paste a stream of text pieces, returning the joined full text.
 
         Default implementation buffers everything and calls paste_text once.
@@ -44,8 +52,8 @@ class BasePlatform(ABC):
                 parts.append(piece)
         full_text = " ".join(parts).strip()
         if full_text:
-            self.paste_text(full_text, auto_enter=auto_enter)
-        return full_text
+            return self.paste_text(full_text, auto_enter=auto_enter)
+        return PasteResult(full_text="")
 
     @abstractmethod
     def play_success_sound(self) -> None:

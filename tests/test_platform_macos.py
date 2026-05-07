@@ -144,21 +144,24 @@ class TestMacOSPlatform:
         p = MacOSPlatform()
         with patch("talk_to_vibe.platforms.macos.time") as mock_time, \
              patch("pynput.keyboard.Controller") as mock_ctrl:
-            p.paste_text("hello")
+            result = p.paste_text("hello")
             mock_ctrl.return_value.type.assert_called_once_with("hello")
             mock_time.sleep.assert_not_called()
+            assert result.full_text == "hello"
+            assert result.clipboard_restore_failed is False
 
     def test_paste_text_types_text_then_enters_when_enabled(self):
         p = MacOSPlatform()
         with patch("talk_to_vibe.platforms.macos.time") as mock_time, \
              patch("pynput.keyboard.Controller") as mock_ctrl, \
              patch("pynput.keyboard.Key") as mock_key:
-            p.paste_text("hello", auto_enter=True)
+            result = p.paste_text("hello", auto_enter=True)
             controller = mock_ctrl.return_value
             controller.type.assert_called_once_with("hello")
             mock_time.sleep.assert_called_once_with(0.05)
             controller.press.assert_called_once_with(mock_key.enter)
             controller.release.assert_called_once_with(mock_key.enter)
+            assert result.full_text == "hello"
 
     def test_play_success_sound(self):
         p = MacOSPlatform()

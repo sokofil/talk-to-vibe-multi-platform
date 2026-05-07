@@ -1,7 +1,7 @@
 import subprocess
 import time
 
-from talk_to_vibe.platforms.base import BasePlatform
+from talk_to_vibe.platforms.base import BasePlatform, PasteResult
 from talk_to_vibe.errors import PlatformError
 
 _MODIFIER_KEYS = {"alt_r", "alt_l", "cmd_r", "cmd_l", "ctrl_r", "ctrl_l", "shift_r", "shift_l", "cmd", "ctrl", "alt", "shift"}
@@ -190,7 +190,7 @@ class MacOSPlatform(BasePlatform):
         parts = [p.strip() for p in chord_str.split("+")]
         return all(p in _MODIFIER_KEYS for p in parts)
 
-    def paste_text(self, text: str, auto_enter: bool = False) -> None:
+    def paste_text(self, text: str, auto_enter: bool = False) -> PasteResult:
         from pynput.keyboard import Controller, Key
 
         kb = Controller()
@@ -200,6 +200,7 @@ class MacOSPlatform(BasePlatform):
             time.sleep(0.05)
             kb.press(Key.enter)
             kb.release(Key.enter)
+        return PasteResult(full_text=text)
 
     def play_success_sound(self) -> None:
         subprocess.Popen(
