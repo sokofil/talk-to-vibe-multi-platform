@@ -44,7 +44,8 @@ def main():
     args = parser.parse_args()
 
     if args.setup:
-        config = run_wizard(force=True)
+        run_wizard(force=True)
+        return
     else:
         config = load_config()
 

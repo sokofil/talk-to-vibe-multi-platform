@@ -7,7 +7,7 @@ from talk_to_vibe.config.models import AppConfig, ProviderConfig, GroqConfig, Op
 
 
 class TestCLI:
-    def test_setup_flag_runs_wizard(self, monkeypatch):
+    def test_setup_flag_runs_wizard_without_launching_app(self, monkeypatch):
         monkeypatch.setattr("sys.argv", ["talk-to-vibe", "--setup", "--terminal"])
         cfg = AppConfig(provider="groq", providers=ProviderConfig(groq=GroqConfig(api_key="gsk_test")))
         mock_wizard = MagicMock(return_value=cfg)
@@ -15,12 +15,10 @@ class TestCLI:
         mock_app_class = MagicMock()
         monkeypatch.setattr("talk_to_vibe.app.TalkToVibe", mock_app_class)
 
-        try:
-            main()
-        except SystemExit:
-            pass
+        main()
 
-        assert mock_app_class.called
+        mock_wizard.assert_called_once_with(force=True)
+        assert not mock_app_class.called
 
     def test_missing_key_prompts_setup(self, monkeypatch):
         monkeypatch.setattr("sys.argv", ["talk-to-vibe", "--terminal"])

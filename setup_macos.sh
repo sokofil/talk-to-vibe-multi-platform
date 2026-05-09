@@ -146,7 +146,10 @@ run_config_wizard() {
   fi
   echo ""
   echo "🔧 Running TalkToVibe configuration wizard"
-  "$PYTHON_BIN" -m talk_to_vibe --setup --terminal
+  PYTHONPATH="$SCRIPT_DIR" "$PYTHON_BIN" -c '
+from talk_to_vibe.config.wizard import run_wizard
+run_wizard(force=True)
+'
 }
 
 build_artifacts() {
@@ -282,7 +285,28 @@ sign_installed_app() {
   security list-keychains -d user -s "$SIGNING_KEYCHAIN" $existing_keychains >/dev/null
   security unlock-keychain -p "$keychain_password" "$SIGNING_KEYCHAIN"
 
-  codesign --force --deep --sign "$SIGNING_COMMON_NAME" "$APP_DEST"
+  local path
+  echo "  Removing existing app signatures"
+  if [ -d "$APP_DEST/Contents/MacOS" ]; then
+    while IFS= read -r -d '' path; do
+      codesign --remove-signature "$path" >/dev/null 2>&1 || true
+    done < <(find "$APP_DEST/Contents/MacOS" -type f -print0)
+  fi
+  if [ -d "$APP_DEST/Contents/Frameworks" ]; then
+    while IFS= read -r -d '' path; do
+      codesign --remove-signature "$path" >/dev/null 2>&1 || true
+    done < <(find "$APP_DEST/Contents/Frameworks" -type f \( -name "*.dylib" -o -name "*.so" \) -print0)
+  fi
+  while IFS= read -r -d '' path; do
+    rm -rf "$path"
+  done < <(find "$APP_DEST" -type d -name "_CodeSignature" -print0)
+  while IFS= read -r -d '' path; do
+    rm -f "$path"
+  done < <(find "$APP_DEST" -type f -name "CodeResources" -print0)
+  codesign --remove-signature "$APP_DEST" >/dev/null 2>&1 || true
+
+  echo "  Freshly codesigning installed app"
+  codesign --force --deep --keychain "$SIGNING_KEYCHAIN" --sign "$SIGNING_COMMON_NAME" "$APP_DEST"
   codesign --verify --deep --strict "$APP_DEST"
 
   security list-keychains -d user -s $existing_keychains >/dev/null

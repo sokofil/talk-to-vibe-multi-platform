@@ -17,6 +17,20 @@ def test_setup_script_supports_skip_signing_flag():
     assert 'Skipping local codesigning' in content
 
 
+def test_setup_script_wizard_does_not_launch_app_loop():
+    path = REPO_ROOT / "setup_macos.sh"
+    content = path.read_text()
+    assert '"$PYTHON_BIN" -m talk_to_vibe --setup' not in content
+    assert "from talk_to_vibe.config.wizard import run_wizard" in content
+
+
+def test_setup_script_strips_existing_signatures_before_resigning():
+    path = REPO_ROOT / "setup_macos.sh"
+    content = path.read_text()
+    assert "codesign --remove-signature" in content
+    assert "Freshly codesigning installed app" in content
+
+
 def test_setup_script_uses_python_for_secret_generation():
     path = REPO_ROOT / "setup_macos.sh"
     content = path.read_text()
