@@ -11,19 +11,43 @@ if str(project_root) not in sys.path:
 
 from talk_to_vibe import __version__
 
+import importlib.util
+
 prompt_datas = collect_data_files("talk_to_vibe.providers.prompts", includes=["*.md"])
 whisper_datas = collect_data_files("faster_whisper.assets")
+mlx_whisper_datas = collect_data_files("mlx_whisper")
+mlx_datas = [(src, dst) for src, dst in collect_data_files("mlx") if src.endswith(".metallib")]
+
+_mlx_spec = importlib.util.find_spec("mlx")
+_mlx_pkg = Path(list(_mlx_spec.submodule_search_locations)[0])
+mlx_lib = str(_mlx_pkg / "lib")
+mlx_binaries = [
+    (str(Path(mlx_lib) / "libmlx.dylib"), "mlx/lib"),
+    (str(Path(mlx_lib) / "libjaccl.dylib"), "mlx/lib"),
+]
 
 a = Analysis(
     [str(project_root / "talk_to_vibe" / "__main__.py")],
     pathex=[str(project_root)],
-    binaries=[],
-    datas=prompt_datas + whisper_datas,
-    hiddenimports=["rumps", "faster_whisper", "faster_whisper.assets", "ctranslate2"],
+    binaries=mlx_binaries,
+    datas=prompt_datas + whisper_datas + mlx_whisper_datas + mlx_datas,
+    hiddenimports=[
+        "rumps",
+        "faster_whisper",
+        "faster_whisper.assets",
+        "ctranslate2",
+        "mlx_whisper",
+        "mlx.core",
+        "mlx.nn",
+        "mlx.utils",
+        "tiktoken",
+        "tiktoken_ext",
+        "tiktoken_ext.openai_public",
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=["torch", "torchvision", "torchaudio", "tensorflow", "jax"],
     noarchive=False,
 )
 
