@@ -3,7 +3,7 @@
 from pathlib import Path
 import sys
 
-from PyInstaller.utils.hooks import collect_data_files
+from PyInstaller.utils.hooks import collect_data_files, collect_all
 
 project_root = Path.cwd()
 if str(project_root) not in sys.path:
@@ -15,13 +15,15 @@ import importlib.util
 
 prompt_datas = collect_data_files("talk_to_vibe.providers.prompts", includes=["*.md"])
 whisper_datas = collect_data_files("faster_whisper.assets")
-mlx_whisper_datas = collect_data_files("mlx_whisper")
-mlx_datas = [(src, dst) for src, dst in collect_data_files("mlx") if src.endswith(".metallib")]
 
+mlx_datas, mlx_binaries_auto, mlx_hidden = collect_all("mlx")
+mlx_whisper_datas, mlx_whisper_binaries, mlx_whisper_hidden = collect_all("mlx_whisper")
+
+# Explicitly include dylibs that PyInstaller can't resolve via @rpath
 _mlx_spec = importlib.util.find_spec("mlx")
 _mlx_pkg = Path(list(_mlx_spec.submodule_search_locations)[0])
 mlx_lib = str(_mlx_pkg / "lib")
-mlx_binaries = [
+mlx_binaries_explicit = [
     (str(Path(mlx_lib) / "libmlx.dylib"), "mlx/lib"),
     (str(Path(mlx_lib) / "libjaccl.dylib"), "mlx/lib"),
 ]
@@ -29,21 +31,17 @@ mlx_binaries = [
 a = Analysis(
     [str(project_root / "talk_to_vibe" / "__main__.py")],
     pathex=[str(project_root)],
-    binaries=mlx_binaries,
-    datas=prompt_datas + whisper_datas + mlx_whisper_datas + mlx_datas,
+    binaries=mlx_binaries_explicit + mlx_binaries_auto + mlx_whisper_binaries,
+    datas=prompt_datas + whisper_datas + mlx_datas + mlx_whisper_datas,
     hiddenimports=[
         "rumps",
         "faster_whisper",
         "faster_whisper.assets",
         "ctranslate2",
-        "mlx_whisper",
-        "mlx.core",
-        "mlx.nn",
-        "mlx.utils",
         "tiktoken",
         "tiktoken_ext",
         "tiktoken_ext.openai_public",
-    ],
+    ] + mlx_hidden + mlx_whisper_hidden,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
