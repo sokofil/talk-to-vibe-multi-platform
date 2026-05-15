@@ -27,12 +27,15 @@ mlx_binaries_explicit = [
     (str(Path(mlx_lib) / "libmlx.dylib"), "mlx/lib"),
     (str(Path(mlx_lib) / "libjaccl.dylib"), "mlx/lib"),
 ]
+# PyInstaller rewrites core.so's RPATH to @loader_path/.., so libmlx.dylib
+# loads from the top-level Frameworks dir. Copy metallib there so libmlx finds it.
+mlx_metallib_toplevel = [(str(Path(mlx_lib) / "mlx.metallib"), ".")]
 
 a = Analysis(
     [str(project_root / "talk_to_vibe" / "__main__.py")],
     pathex=[str(project_root)],
     binaries=mlx_binaries_explicit + mlx_binaries_auto + mlx_whisper_binaries,
-    datas=prompt_datas + whisper_datas + mlx_datas + mlx_whisper_datas,
+    datas=prompt_datas + whisper_datas + mlx_datas + mlx_whisper_datas + mlx_metallib_toplevel,
     hiddenimports=[
         "rumps",
         "faster_whisper",
