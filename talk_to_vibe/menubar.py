@@ -188,7 +188,9 @@ class TalkToVibeMenuBar(rumps.App):
             from pynput import keyboard
 
             has_access = self._ensure_global_key_access()
-            listener_kwargs = self.platform.build_listener_kwargs(self.logger, self.debug_key_events)
+            listener_kwargs = self.platform.build_listener_kwargs(
+                self.logger, ptt_chord=self.ptt_chord, debug_key_events=self.debug_key_events
+            )
 
             listener = keyboard.Listener(
                 on_press=self.on_key_press,

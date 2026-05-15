@@ -12,3 +12,4 @@ pystray>=0.19.5;sys_platform=="linux"
 pytest>=7.0.0
 faster-whisper>=1.1.0
 ctranslate2>=4.5.0
+mlx-whisper>=0.4.0;sys_platform=="darwin"

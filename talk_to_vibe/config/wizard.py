@@ -44,6 +44,7 @@ def run_wizard(config: AppConfig | None = None, force: bool = False) -> AppConfi
         "openai_compatible": "OpenAI-Compatible — Whisper transcription (self-hosted)",
         "openrouter": "OpenRouter — Multimodal chat models (Gemini, etc.)",
         "local_whisper": "Local Whisper — On-device transcription (faster-whisper, GPU optional)",
+        "mlx_whisper": "MLX Whisper — Apple Silicon GPU/Neural Engine (macOS only, fastest on Mac)",
     }
 
     for i, key in enumerate(SUPPORTED_PROVIDERS, 1):
@@ -116,11 +117,27 @@ def run_wizard(config: AppConfig | None = None, force: bool = False) -> AppConfi
         if compute:
             lw.compute_type = compute
 
+    elif provider == "mlx_whisper":
+        mw = config.providers.mlx_whisper
+        print("   Recommended models:")
+        print("     mlx-community/whisper-large-v3-turbo   (best quality)")
+        print("     mlx-community/whisper-large-v3-turbo-q4  (quantized, faster)")
+        print("     mlx-community/whisper-small-mlx-q4     (small, very fast)")
+        print()
+        model = _input_safe(f"   Model (default: {mw.model}): ")
+        if model:
+            mw.model = model
+        lang = _input_safe(f"   Language code, e.g. 'en' (default: auto-detect): ")
+        if lang:
+            mw.language = lang
+
     _configure_ptt_key(config)
     _configure_mic_preferences(config)
     _configure_auto_enter(config)
     if provider == "local_whisper":
         _configure_local_whisper_output(config)
+    elif provider == "mlx_whisper":
+        _configure_mlx_whisper_output(config)
     else:
         _configure_prompt_file(config)
 
@@ -310,6 +327,30 @@ def _configure_prompt_file(config: AppConfig) -> None:
     else:
         config.prompt_file = ""
         print("   Using default bundled prompt")
+
+
+def _configure_mlx_whisper_output(config: AppConfig) -> None:
+    mw = config.providers.mlx_whisper
+
+    print("\n🎙️  MLX Whisper Output Quality\n")
+    print("   Post-processing strips filler words (um, uh) and self-corrections.")
+    current_pp = "ON" if mw.post_process else "OFF"
+    print(f"   Current: {current_pp}")
+    print("   1) ON  — strip filler words and self-corrections")
+    print("   2) OFF — pass output through unchanged\n")
+    while True:
+        choice = _input_safe(f"   Select [1-2] (Enter = keep {current_pp}): ")
+        if not choice:
+            break
+        if choice == "1":
+            mw.post_process = True
+            print("   Selected: ON")
+            break
+        if choice == "2":
+            mw.post_process = False
+            print("   Selected: OFF")
+            break
+        print("   ⚠️  Enter 1 or 2")
 
 
 def _configure_local_whisper_output(config: AppConfig) -> None:

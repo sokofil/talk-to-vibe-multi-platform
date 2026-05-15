@@ -4,6 +4,7 @@ from talk_to_vibe.providers.openai_whisper import OpenAIWhisperProvider
 from talk_to_vibe.providers.openai_compatible import OpenAICompatibleProvider
 from talk_to_vibe.providers.openrouter_multimodal import OpenRouterMultimodalProvider
 from talk_to_vibe.providers.local_whisper import LocalWhisperProvider
+from talk_to_vibe.providers.mlx_whisper import MLXWhisperProvider
 from talk_to_vibe.config.models import AppConfig
 from talk_to_vibe.errors import ProviderError, ProviderAuthError
 
@@ -18,6 +19,7 @@ PROVIDER_REGISTRY = {
     "openai_compatible": OpenAICompatibleProvider,
     "openrouter": OpenRouterMultimodalProvider,
     "local_whisper": LocalWhisperProvider,
+    "mlx_whisper": MLXWhisperProvider,
 }
 
 
@@ -46,6 +48,20 @@ def create_provider(config: AppConfig) -> BaseSTTProvider:
             raise ProviderError(
                 "faster-whisper is not installed. Run linux_install_and_set_whisper.sh "
                 "to install it, or pip install faster-whisper inside the venv."
+            ) from exc
+
+    if provider_name == "mlx_whisper":
+        mw = config.providers.mlx_whisper
+        try:
+            return cls(
+                model=mw.model,
+                language=mw.language,
+                hints_file=mw.hints_file,
+                post_process=mw.post_process,
+            )
+        except ImportError as exc:
+            raise ProviderError(
+                "mlx-whisper is not installed. Run: pip install mlx-whisper"
             ) from exc
 
     if provider_name == "groq":

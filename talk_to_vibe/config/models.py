@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 
 from talk_to_vibe.config.constants import DEFAULT_PROVIDER, DEFAULT_PTT_KEY
@@ -30,6 +32,14 @@ class OpenRouterConfig:
 
 
 @dataclass
+class MLXWhisperConfig:
+    model: str = "mlx-community/whisper-large-v3-turbo"
+    language: str = ""
+    hints_file: str = ""
+    post_process: bool = True
+
+
+@dataclass
 class LocalWhisperConfig:
     model_size: str = "large-v3-turbo"
     device: str = "auto"
@@ -50,6 +60,7 @@ class ProviderConfig:
     openai_compatible: OpenAICompatibleConfig = field(default_factory=OpenAICompatibleConfig)
     openrouter: OpenRouterConfig = field(default_factory=OpenRouterConfig)
     local_whisper: LocalWhisperConfig = field(default_factory=LocalWhisperConfig)
+    mlx_whisper: MLXWhisperConfig = field(default_factory=MLXWhisperConfig)
 
 
 @dataclass
@@ -63,7 +74,7 @@ class AppConfig:
 
     def validate(self) -> list[str]:
         errors = []
-        if self.provider not in ("groq", "openai", "openai_compatible", "openrouter", "local_whisper"):
+        if self.provider not in ("groq", "openai", "openai_compatible", "openrouter", "local_whisper", "mlx_whisper"):
             errors.append(f"Unknown provider: {self.provider}")
         if self.provider == "groq":
             if not self.providers.groq.api_key:
@@ -106,4 +117,7 @@ class AppConfig:
                 errors.append(
                     f"Local Whisper compute_type invalid: {self.providers.local_whisper.compute_type}"
                 )
+        if self.provider == "mlx_whisper":
+            if not self.providers.mlx_whisper.model:
+                errors.append("MLX Whisper model is required when provider is 'mlx_whisper'")
         return errors

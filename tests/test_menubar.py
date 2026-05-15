@@ -160,7 +160,9 @@ class TestMenuBarPermissions:
             listener = MagicMock()
             mock_listener.return_value = listener
             app._start_listener()
-        app.platform.build_listener_kwargs.assert_called_once_with(app.logger, True)
+        app.platform.build_listener_kwargs.assert_called_once_with(
+            app.logger, ptt_chord=app.ptt_chord, debug_key_events=True
+        )
 
     def test_start_listener_alerts_on_listener_exception(self):
         app = _make_menubar_app(ptt_key_name="alt_r")
