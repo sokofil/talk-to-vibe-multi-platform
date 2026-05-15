@@ -8,13 +8,36 @@ _MODIFIER_KEYS = {"alt_r", "alt_l", "cmd_r", "cmd_l", "ctrl_r", "ctrl_l", "shift
 
 
 class MacOSPlatform(BasePlatform):
-    def build_listener_kwargs(self, logger, debug_key_events: bool = False) -> dict:
+    def build_listener_kwargs(self, logger, ptt_chord: frozenset | None = None, debug_key_events: bool = False) -> dict:
         from Quartz import CGEventGetFlags, CGEventGetIntegerValueField, kCGKeyboardEventKeycode
+        from pynput import keyboard as kb
+
+        CTRL_MASK  = 0x040000
+        SHIFT_MASK = 0x020000
+        ALT_MASK   = 0x080000
+        CMD_MASK   = 0x100000
+        ALL_MOD    = CTRL_MASK | SHIFT_MASK | ALT_MASK | CMD_MASK
+
+        suppress_vks: set[int] = set()
+        required_flags = 0
+        for key in (ptt_chord or ()):
+            if key == kb.Key.ctrl:
+                required_flags |= CTRL_MASK
+            elif key == kb.Key.shift:
+                required_flags |= SHIFT_MASK
+            elif key == kb.Key.alt:
+                required_flags |= ALT_MASK
+            elif key == kb.Key.cmd:
+                required_flags |= CMD_MASK
+            elif isinstance(key, kb.KeyCode) and key.vk is not None:
+                suppress_vks.add(key.vk)
 
         def intercept(event_type, event):
+            vk = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode)
+            flags = CGEventGetFlags(event)
+            if suppress_vks and vk in suppress_vks and (flags & ALL_MOD) == required_flags:
+                return None
             if debug_key_events:
-                vk = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode)
-                flags = CGEventGetFlags(event)
                 logger.info("Quartz intercept event_type=%s vk=%s flags=%s", event_type, vk, flags)
             return event
 

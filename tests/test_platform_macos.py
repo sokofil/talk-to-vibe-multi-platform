@@ -108,6 +108,63 @@ class TestMacOSPlatform:
 
         logger.info.assert_not_called()
 
+    def test_build_listener_kwargs_suppresses_chord_non_modifier_key(self):
+        p = MacOSPlatform()
+        logger = MagicMock()
+        from pynput import keyboard as kb
+        chord = frozenset({kb.Key.ctrl, kb.KeyCode.from_vk(0x19)})  # ctrl + 9
+
+        with patch("Quartz.CGEventGetIntegerValueField", return_value=0x19), \
+             patch("Quartz.CGEventGetFlags", return_value=0x040000), \
+             patch("Quartz.kCGKeyboardEventKeycode", 9):
+            kwargs = p.build_listener_kwargs(logger, ptt_chord=chord)
+            result = kwargs["darwin_intercept"](10, object())
+
+        assert result is None
+
+    def test_build_listener_kwargs_passes_non_chord_key(self):
+        p = MacOSPlatform()
+        logger = MagicMock()
+        from pynput import keyboard as kb
+        chord = frozenset({kb.Key.ctrl, kb.KeyCode.from_vk(0x19)})  # ctrl + 9
+        event = object()
+
+        with patch("Quartz.CGEventGetIntegerValueField", return_value=0x1A), \
+             patch("Quartz.CGEventGetFlags", return_value=0x040000), \
+             patch("Quartz.kCGKeyboardEventKeycode", 9):
+            kwargs = p.build_listener_kwargs(logger, ptt_chord=chord)
+            result = kwargs["darwin_intercept"](10, event)
+
+        assert result is event
+
+    def test_build_listener_kwargs_passes_chord_key_with_wrong_modifiers(self):
+        p = MacOSPlatform()
+        logger = MagicMock()
+        from pynput import keyboard as kb
+        chord = frozenset({kb.Key.ctrl, kb.KeyCode.from_vk(0x19)})
+        event = object()
+
+        with patch("Quartz.CGEventGetIntegerValueField", return_value=0x19), \
+             patch("Quartz.CGEventGetFlags", return_value=0x000000), \
+             patch("Quartz.kCGKeyboardEventKeycode", 9):
+            kwargs = p.build_listener_kwargs(logger, ptt_chord=chord)
+            result = kwargs["darwin_intercept"](10, event)
+
+        assert result is event
+
+    def test_build_listener_kwargs_no_chord_passes_all_events(self):
+        p = MacOSPlatform()
+        logger = MagicMock()
+        event = object()
+
+        with patch("Quartz.CGEventGetIntegerValueField", return_value=0x19), \
+             patch("Quartz.CGEventGetFlags", return_value=0x040000), \
+             patch("Quartz.kCGKeyboardEventKeycode", 9):
+            kwargs = p.build_listener_kwargs(logger)
+            result = kwargs["darwin_intercept"](10, event)
+
+        assert result is event
+
     def test_get_key_display_names(self):
         p = MacOSPlatform()
         names = p.get_key_display_names()

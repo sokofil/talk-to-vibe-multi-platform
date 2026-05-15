@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from talk_to_vibe.config.constants import SUPPORTED_PROVIDERS
 from talk_to_vibe.config.loader import load_config, save_config
 from talk_to_vibe.config.models import AppConfig, GroqConfig, OpenAICompatibleConfig, OpenRouterConfig

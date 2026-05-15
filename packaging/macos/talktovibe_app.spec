@@ -12,13 +12,14 @@ if str(project_root) not in sys.path:
 from talk_to_vibe import __version__
 
 prompt_datas = collect_data_files("talk_to_vibe.providers.prompts", includes=["*.md"])
+whisper_datas = collect_data_files("faster_whisper.assets")
 
 a = Analysis(
     [str(project_root / "talk_to_vibe" / "__main__.py")],
     pathex=[str(project_root)],
     binaries=[],
-    datas=prompt_datas,
-    hiddenimports=["rumps"],
+    datas=prompt_datas + whisper_datas,
+    hiddenimports=["rumps", "faster_whisper", "faster_whisper.assets", "ctranslate2"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import logging
 import threading
 import time
 
@@ -156,9 +159,14 @@ class TalkToVibe:
             print(f"⚠️  Make sure to allow: {line}")
         print()
 
+        listener_kwargs = self.platform.build_listener_kwargs(
+            logging.getLogger(__name__), ptt_chord=self.ptt_chord
+        )
+
         with keyboard.Listener(
             on_press=self.on_key_press,
             on_release=self.on_key_release,
+            **listener_kwargs,
         ) as listener:
             try:
                 listener.join()
